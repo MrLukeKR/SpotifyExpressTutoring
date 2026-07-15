@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="SiyaSpotify/SiyaSpotify.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+</Solution>

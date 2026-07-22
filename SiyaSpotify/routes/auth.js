@@ -2,6 +2,7 @@
 var express = require('express');
 var router = express.Router();
 var querystring = require('querystring');
+var tokenStore = require('../lib/tokenStore');
 
 // Read client configuration from environment variables
 var client_id = process.env.CLIENT_ID || '';
@@ -25,7 +26,7 @@ router.get('/login', function (req, res) {
         return res.status(500).json({ error: 'Missing Spotify client configuration. Check .env.' });
     }
     var state = generateRandomString(16);
-    var scope = 'user-read-private user-read-email';
+    var scope = 'user-read-private user-read-email user-top-read';
 
     res.cookie('spotify_auth_state', state);
 
@@ -70,7 +71,15 @@ router.get('/callback', async function (req, res) {
             const data = await response.json();
 
             if (response.ok) {
-                res.json(data);
+                // Persist tokens so later API calls (e.g. /me) don't need to
+                // re-run the OAuth flow every time.
+                tokenStore.saveTokens({
+                    access_token: data.access_token,
+                    refresh_token: data.refresh_token,
+                    expires_in: data.expires_in,
+                    expires_at: Date.now() + data.expires_in * 1000
+                });
+                res.redirect('/');
             } else {
                 res.redirect('/#' + querystring.stringify({ error: 'invalid_token' }));
             }
@@ -78,6 +87,11 @@ router.get('/callback', async function (req, res) {
             res.status(500).json({ error: 'Failed to authenticate', details: error.message });
         }
     }
+});
+
+// GET /auth/status -> Lets the frontend know whether we have a saved token
+router.get('/auth/status', function (req, res) {
+    res.json({ authenticated: !!tokenStore.getTokens() });
 });
 
 module.exports = router;

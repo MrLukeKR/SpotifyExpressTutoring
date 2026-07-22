@@ -2,6 +2,9 @@
 node_modules/
 .env
 
+# Saved OAuth tokens (local dev)
+data/tokens.json
+
 # Logs
 logs
 *.log

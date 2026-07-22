@@ -7,6 +7,37 @@
   </head>
   <body>
     <h1>SiyaSpotify</h1>
-    <p>Welcome to SiyaSpotify. Use <a href="/login">/login</a> to authenticate with Spotify.</p>
+    <p id="login-prompt">Welcome to SiyaSpotify. Use <a href="/login">/login</a> to authenticate with Spotify.</p>
+
+    <div id="top-tracks-section" hidden>
+      <p>
+        <label for="track-count">Number of tracks:</label>
+        <input type="number" id="track-count" min="1" max="200" value="20">
+      </p>
+
+      <div class="tabs">
+        <button type="button" class="tab-button active" data-tab="tracks">Tracks</button>
+        <button type="button" class="tab-button" data-tab="artists">Artists</button>
+        <button type="button" class="tab-button" data-tab="albums">Albums</button>
+      </div>
+
+      <p>Show my top results for:</p>
+      <button type="button" data-term="short_term">Short term</button>
+      <button type="button" data-term="medium_term">Medium term</button>
+      <button type="button" data-term="long_term">Long term</button>
+
+      <div id="tracks-panel" class="tab-panel">
+        <p id="average-bpm"></p>
+        <div id="top-tracks-results" class="track-grid"></div>
+      </div>
+      <div id="artists-panel" class="tab-panel" hidden>
+        <div id="artists-results" class="artist-grid"></div>
+      </div>
+      <div id="albums-panel" class="tab-panel" hidden>
+        <div id="albums-results" class="track-grid"></div>
+      </div>
+    </div>
+
+    <script src="/javascripts/app.js"></script>
   </body>
 </html>

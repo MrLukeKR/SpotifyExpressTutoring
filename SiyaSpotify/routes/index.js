@@ -43,6 +43,74 @@ function formatKey(pitchClass, mode) {
   return KEY_NAMES[pitchClass] + (mode === 0 ? ' minor' : ' major');
 }
 
+function assignAudioMetadata(track, data) {
+  if (!data) return;
+
+  var tempo = data.tempo;
+  var key = data.key;
+  var mode = data.mode;
+  if (data.track) {
+    tempo = data.track.tempo;
+    key = data.track.key;
+    mode = data.track.mode;
+  }
+
+  if (typeof tempo === 'number') {
+    track.bpm = Math.round(tempo);
+  }
+  if (key !== undefined && key !== null) {
+    track.key = formatKey(key, mode);
+  }
+}
+
+async function enrichTracksWithAudioMetadata(tracks) {
+  var ids = tracks.map(function (t) { return t.id; }).filter(Boolean);
+  if (ids.length === 0) return;
+
+  var idChunks = chunk(ids, AUDIO_FEATURES_CHUNK);
+  for (var i = 0; i < idChunks.length; i++) {
+    try {
+      var featuresResponse = await spotifyApi.spotifyFetch('/audio-features?ids=' + idChunks[i].join(','));
+      if (featuresResponse.ok) {
+        var featuresData = await featuresResponse.json();
+        var featuresById = {};
+        (featuresData.audio_features || []).forEach(function (f) {
+          if (f) featuresById[f.id] = f;
+        });
+
+        tracks.forEach(function (t) {
+          if (t.bpm === null && t.key === null && featuresById[t.id]) {
+            assignAudioMetadata(t, featuresById[t.id]);
+          }
+        });
+      }
+    } catch (err) {
+      // Ignore and fall back to per-track lookups below.
+    }
+  }
+
+  var missingTracks = tracks.filter(function (t) { return t.bpm === null && t.key === null; });
+  for (var j = 0; j < missingTracks.length; j++) {
+    var track = missingTracks[j];
+    try {
+      var singleFeaturesResponse = await spotifyApi.spotifyFetch('/audio-features/' + track.id);
+      if (singleFeaturesResponse.ok) {
+        var singleFeaturesData = await singleFeaturesResponse.json();
+        assignAudioMetadata(track, singleFeaturesData);
+        continue;
+      }
+
+      var analysisResponse = await spotifyApi.spotifyFetch('/audio-analysis/' + track.id);
+      if (analysisResponse.ok) {
+        var analysisData = await analysisResponse.json();
+        assignAudioMetadata(track, analysisData);
+      }
+    } catch (err) {
+      // Leave the track without metadata if Spotify blocks the lookup.
+    }
+  }
+}
+
 function chunk(array, size) {
   var chunks = [];
   for (var i = 0; i < array.length; i += size) {
@@ -148,30 +216,10 @@ router.get('/me/top/:term', async function (req, res) {
       };
     });
 
-    // Audio features requires the "user-top-read"-adjacent /audio-features endpoint,
-    // which some newer Spotify apps don't have access to. Fail soft: leave bpm/key null.
-    var idChunks = chunk(tracks.map(function (t) { return t.id; }).filter(Boolean), AUDIO_FEATURES_CHUNK);
-    for (var i = 0; i < idChunks.length; i++) {
-      try {
-        var featuresResponse = await spotifyApi.spotifyFetch('/audio-features?ids=' + idChunks[i].join(','));
-        if (featuresResponse.ok) {
-          var featuresData = await featuresResponse.json();
-          var featuresById = {};
-          (featuresData.audio_features || []).forEach(function (f) {
-            if (f) featuresById[f.id] = f;
-          });
-          tracks.forEach(function (t) {
-            var f = featuresById[t.id];
-            if (f) {
-              t.bpm = Math.round(f.tempo);
-              t.key = formatKey(f.key, f.mode);
-            }
-          });
-        }
-      } catch (err) {
-        // Ignore — tracks still render with album art/year even without audio features.
-      }
-    }
+    // Spotify's audio feature endpoints can be restricted depending on the app's
+    // access tier, so we try the batch lookup first and then fall back to per-track
+    // lookups or audio analysis when available.
+    await enrichTracksWithAudioMetadata(tracks);
 
     var bpms = tracks.map(function (t) { return t.bpm; }).filter(function (bpm) { return typeof bpm === 'number'; });
     var averageBpm = bpms.length ? Math.round(bpms.reduce(function (sum, bpm) { return sum + bpm; }, 0) / bpms.length) : null;

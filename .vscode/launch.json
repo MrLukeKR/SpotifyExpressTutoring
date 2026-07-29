@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug SiyaSpotify",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/SiyaSpotify",
+      "program": "${workspaceFolder}/SiyaSpotify/bin/www",
+      "console": "integratedTerminal",
+      "envFile": "${workspaceFolder}/SiyaSpotify/.env",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "env": {
+        "PORT": "3000"
+      }
+    }
+  ]
+}
